@@ -105,42 +105,35 @@ dim(validation)
 ```
 
 
-Plotting the activity type versus different measure types (roll, pitch and yaw) on the same site (belt):
+Plotting the data distribution of variables with different measure types (roll, pitch and yaw) on the same site (belt) can see that data is highly skewed:
 
-```{r plotting1, echo=FALSE}
-g1 <- ggplot(training0,aes(classe,roll_belt,fill=classe))
-g1 <- g1 + geom_boxplot()
-g1 <- g1 + theme(legend.position = "none") 
+```{r plotting1, echo=FALSE, fig.height=3}
+g1 <- qplot(training0$roll_belt,geom="histogram",bins=30)
+g1 <- g1 + xlab("roll_belt")
 
-g2 <- ggplot(training0,aes(classe,pitch_belt,fill=classe))
-g2 <- g2 + geom_boxplot()
-g2 <- g2 + theme(legend.position = "none") 
+g2 <- qplot(training0$pitch_belt,geom="histogram",bins=30)
+g2 <- g2 + xlab("pitch_belt")
 
-g3 <- ggplot(training0,aes(classe,yaw_belt,fill=classe))
-g3 <- g3 + geom_boxplot()
-g3 <- g3 + theme(legend.position = "none") 
+g3 <- qplot(training0$yaw_belt,geom="histogram",bins=30)
+g3 <- g3 + xlab("yaw_belt")
 
 grid.arrange(g1,g2,g3,nrow=1)
 ```
             
-Plotting the activity type versus one measure type (roll) on all the different sites (belt, arm, dumbbell and forearm):
+Plotting the data distribution of variables of one measure type (roll) on all the different sites (belt, arm, dumbbell and forearm) also can see that data is highly skewed:
 
-```{r plotting2, echo=FALSE}
-g1 <- ggplot(training0,aes(classe,roll_belt,fill=classe))
-g1 <- g1 + geom_boxplot()
-g1 <- g1 + theme(legend.position = "none") 
+```{r plotting2, echo=FALSE, fig.height=3}
+g1 <- qplot(training0$pitch_belt,geom="histogram",bins=30)
+g1 <- g1 + xlab("pitch_belt")
 
-g2 <- ggplot(training0,aes(classe,roll_arm,fill=classe))
-g2 <- g2 + geom_boxplot()
-g2 <- g2 + theme(legend.position = "none") 
+g2 <- qplot(training0$pitch_arm,geom="histogram",bins=30)
+g2 <- g2 + xlab("pitch_arm")
 
-g3 <- ggplot(training0,aes(classe,roll_dumbbell,fill=classe))
-g3 <- g3 + geom_boxplot()
-g3 <- g3 + theme(legend.position = "none") 
+g3 <- qplot(training0$pitch_forearm,geom="histogram",bins=30)
+g3 <- g3 + xlab("pitch_forearm")
 
-g4 <- ggplot(training0,aes(classe,roll_forearm,fill=classe))
-g4 <- g4 + geom_boxplot()
-g4 <- g4 + theme(legend.position = "none") 
+g4 <- qplot(training0$pitch_dumbbell,geom="histogram",bins=30)
+g4 <- g4 + xlab("pitch_dumbbell")
 
 grid.arrange(g1,g2,g3,g4,nrow=1)
 ```
@@ -164,7 +157,7 @@ The prediction model is build using the following settings:
 
 - Data slicing by cross validation method with 10 folds.
 - Using parallel processing to optimize the perfomance when building the model.
-- Standarizing data as a preprocess.
+- Preprocessing data: transforming data by standarization to avoid the skewed original data
 - Using random forest method to construct the model.
 
 ```{r fitthemodel, echo=TRUE, cache=TRUE}
