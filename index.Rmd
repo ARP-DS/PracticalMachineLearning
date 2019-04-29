@@ -1,0 +1,214 @@
+---
+title: "**Practical Machine Learning Project**"
+output: html_document
+---
+
+Data used in this project consist of a large amount of data from accelerometers measures on the belt, forearm, arm and dumbell of six participants doing a personal activity in five different ways. 
+
+Source data is placed in http://groupware.les.inf.puc-rio.br/har.
+
+The goal of this project is to predict the way in which the exercise is done (predict the activity type) using data from the accelerometers measures.
+
+```{r libraries,echo=FALSE, warning=FALSE, message=FALSE}
+library(caret)
+library(ggplot2)
+library(gridExtra)
+```
+
+## **Exploratory analysis**
+
+
+```{r getdata, echo=FALSE}
+
+file1 <- "pml-training.csv"
+url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+if(!file.exists(file1)){
+    download.file(url1, destfile = "pml-training.csv")}
+file2 <- "pml-testing.csv"
+url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+if(!file.exists(file2)){
+    download.file(url2, destfile = "pml-testing.csv")}
+training0 <- read.csv("pml-training.csv")
+validation <- read.csv("pml-testing.csv")
+```
+
+Those are the dimensions of the training and the validation data sets:
+```{r dimdatasets1, echo=TRUE}
+dim(training0)
+dim(validation)
+```
+
+Variable "classe" is the activity type, the variable to be predicted. It is a factor variable with five values:
+
+```{r classe, echo=TRUE}
+table(training0$classe)
+```
+
+
+Taking a look at the training data set:
+
+```{r exploredata, echo=TRUE}
+str(training0, list.len = 29)
+```
+
+Can see that there are a lot of variables with missing values. Checking the missing values:
+
+```{r checkmissingvalues, echo=TRUE}
+NAcolumns <- sapply(training0, function(x) sum(is.na(x)))
+NAcolumns[NAcolumns>0]
+totalNAcolumns <- sum(NAcolumns>0)
+NAindex <- which(unlist(sapply(training0, function(x) sum(is.na(x))))>0)
+```
+
+There are `r totalNAcolumns` variables with missing values. They have a high number of rows with missing values so they will be removed from the data sets rather than being imputed with mean or median. Can see that they are all summary statistics variables like max, min or avg. 
+
+As it is indicated in the source web page, all the participants have similar caracteristics of sex, age and activity experience. So, participants variable ("user name") will be removed from the model since there is no variability related to it. 
+
+Assuming that timestamp variables are irrelevant to predict the activity type, they will be removed too.
+
+Window variable "num_window" is directly related to the "classe" variable in the way that each window number corresponds to a "classe" value. See some examples:
+
+```{r numwindow, echo=TRUE}
+table(training0$num_window, training0$classe)[c(1,11,19,70,89),]
+```
+
+All rows of the validation data set have "num_window" numbers that are in the training set: 
+
+```{r testnumwin, echo=TRUE}
+validation$num_window %in% training0$num_window
+```
+
+So, the truth values of variable "classe" for the validation data set could be known directly mapping the "num_window" variable with the "classe" variable in the training data set.
+
+Since the goal is to build a prediction model to predict the activity type using the accelerometers measures and assuming that window has no relation with those mesures,  "num_window" will be removed. Variable "new_window", directly related with 
+"num_window", will be removed too.
+
+Checking the near zero variables:
+
+```{r nearzerovar, echo=TRUE, warning=FALSE, message=FALSE, cache=TRUE}
+nsv <- nearZeroVar(training0)
+totalnsv <- length(nsv)
+```
+
+There are `r totalnsv` near zero variables in the training set that will be removed.
+
+As the result of the previous data cleaning, only variables related to raw data as roll, pitch or yaw, will be used to make the prediction model. Those are the data sets dimensions after the data cleaning process:
+
+```{r removevar, echo=TRUE}
+training0 <- training0[,-c(1:7, NAindex, nsv)]
+validation <- validation[,-c(1:7, NAindex, nsv)]
+```
+
+```{r dimdatasets2, echo=TRUE}
+dim(training0)
+dim(validation)
+```
+
+
+Plotting the activity type versus different measure types (roll, pitch and yaw) on the same site (belt):
+
+```{r plotting1, echo=FALSE}
+g1 <- ggplot(training0,aes(classe,roll_belt,fill=classe))
+g1 <- g1 + geom_boxplot()
+g1 <- g1 + theme(legend.position = "none") 
+
+g2 <- ggplot(training0,aes(classe,pitch_belt,fill=classe))
+g2 <- g2 + geom_boxplot()
+g2 <- g2 + theme(legend.position = "none") 
+
+g3 <- ggplot(training0,aes(classe,yaw_belt,fill=classe))
+g3 <- g3 + geom_boxplot()
+g3 <- g3 + theme(legend.position = "none") 
+
+grid.arrange(g1,g2,g3,nrow=1)
+```
+            
+Plotting the activity type versus one measure type (roll) on all the different sites (belt, arm, dumbbell and forearm):
+
+```{r plotting2, echo=FALSE}
+g1 <- ggplot(training0,aes(classe,roll_belt,fill=classe))
+g1 <- g1 + geom_boxplot()
+g1 <- g1 + theme(legend.position = "none") 
+
+g2 <- ggplot(training0,aes(classe,roll_arm,fill=classe))
+g2 <- g2 + geom_boxplot()
+g2 <- g2 + theme(legend.position = "none") 
+
+g3 <- ggplot(training0,aes(classe,roll_dumbbell,fill=classe))
+g3 <- g3 + geom_boxplot()
+g3 <- g3 + theme(legend.position = "none") 
+
+g4 <- ggplot(training0,aes(classe,roll_forearm,fill=classe))
+g4 <- g4 + geom_boxplot()
+g4 <- g4 + theme(legend.position = "none") 
+
+grid.arrange(g1,g2,g3,g4,nrow=1)
+```
+
+
+## **Prediction model**
+
+### Building the prediction model
+
+Training data set will be split in two sub sets. A sub training data set (from now on it will be the training set) used to build the model and a testing data set used to test the model.
+
+```{r splitdata, echo=TRUE}
+inTrain <- createDataPartition(y=training0$classe, p=0.70, list=FALSE)
+training <- training0[inTrain,]
+testing <- training0[-inTrain,]
+dim(training)
+dim(testing)
+```
+
+The prediction model is build using the following settings:
+
+- Data slicing by cross validation method with 10 folds.
+- Using parallel processing to optimize the perfomance when building the model.
+- Standarizing data as a preprocess.
+- Using random forest method to construct the model.
+
+```{r fitthemodel, echo=TRUE, cache=TRUE}
+fitcontrol=trainControl(method="cv",number=10,allowParallel = TRUE)
+model <- train(classe ~.,
+               method="rf",
+               trControl=fitcontrol,
+               preProcess=c("center","scale"),
+               data=training)
+```
+
+
+### Predicting on testing data set
+
+Applying the model to the testing data:
+
+```{r predictingtesting, echo=TRUE}
+predictionstesting <- predict(model, testing)
+```
+
+Comparing predicted and truth values on the testing data set:
+
+```{r comparisson, echo=TRUE}
+comparisson <- data.frame(predictionstesting,testing$classe)
+colnames(comparisson) <- c("Prediction", "Truth")
+table(comparisson$Prediction, comparisson$Truth)
+```
+
+Checking the accuracy of the model:
+
+```{r cm, echo=TRUE}
+confusionMatrix(predictionstesting,testing$classe)$overall["Accuracy"]
+```
+
+Applying the model to the validation data:
+
+```{r predicting, echo=TRUE}
+predictions <- predict(model, validation)
+```
+
+Those are the prediction results on the validation data set: `r predictions`
+
+The out of sample error may be higher (lower accuracy) since prediction on the training data set (testing is a sub set of training data) use to be more optimistic than prediction on the validation data set (out of sample).
+
+
+
+
